@@ -1,6 +1,8 @@
 * SRFI 35: Conditions
 ** Abstract
 The SRFI defines constructs for creating and inspecting condition types and values. A condition value encapsulates information about an exceptional situation, or exception. This SRFI also defines a few basic condition types.
+
+For more information, see:  [[https://srfi.schemers.org/srfi-35/][SRFI 35: Conditions]]
 ** Rationale
 Conditions are values that communicate information about exceptional situations between parts of a program. Code that detects an exception may be in a different part of the program than the code that handles it. In fact, the former may have been written independently from the latter. Consequently, to facilitate effective handling of exceptions, conditions must communicate as much information as possible as accurately as possible, and still allow effective handling by code that did not precisely anticipate the nature of the exception that occurred.
 *** This SRFI provides two mechanisms to enable this kind of communication
