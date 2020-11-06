@@ -1,0 +1,193 @@
+== SRFI 35: Conditions
+=== Abstract
+The SRFI defines constructs for creating and inspecting condition types and values. A condition value encapsulates information about an exceptional situation, or exception. This SRFI also defines a few basic condition types.
+=== Rationale
+Conditions are values that communicate information about exceptional situations between parts of a program. Code that detects an exception may be in a different part of the program than the code that handles it. In fact, the former may have been written independently from the latter. Consequently, to facilitate effective handling of exceptions, conditions must communicate as much information as possible as accurately as possible, and still allow effective handling by code that did not precisely anticipate the nature of the exception that occurred.
+==== This SRFI provides two mechanisms to enable this kind of communication
+* subtyping among condition types allows handling code to determine the general nature of an exception even though it does not anticipate its exact nature,
+* compound conditions allow an exceptional situation to be described in multiple ways.
+=== Specification
+Conditions are records with named fields. Each condition belongs to one or more condition types. Each condition type specifies a set of field names. A condition belonging to a condition type includes a value for each of the type's field names. These values can be extracted from the condition by using the appropriate field name.
+
+There is a tree of condition types with the distinguished &condition as its root. All other condition types have a parent condition type.
+
+A condition belonging to several condition types with a common supertype may have distinct values for the supertype's fields for each type. The type used to access a field determines which of the values is returned. The program can extract each of these field values separately.
+=== Procedures
+<procedure>(make-condition-type id parent field-names)</procedure>
+Make-condition-type returns a new condition type. Id must be a symbol that serves as a symbolic name for the condition type. Parent must itself be a condition type. Field-names must be a list of symbols. It identifies the fields of the conditions associated with the condition type.
+
+Field-names must be disjoint from the field names of parent and its ancestors.
+
+<procedure>(condition-type? thing)</procedure>
+Condition-type? is a predicate for condition types: it returns #t if thing is a condition type, and #f otherwise
+
+<procedure>(make-condition type field-name value ...)</procedure>
+Make-condition creates a condition value belonging condition type type. The following arguments must be, in turn, a field name and an arbitrary value. There must be such a pair for each field of type and its direct and indirect supertypes. Make-condition returns the condition value, with the argument values associated with their respective fields.
+
+<procedure>(condition? thing)</procedure>
+Condition? is a predicate for conditions: it returns #t if thing is a condition type, and #f otherwise
+
+<procedure>(condition-has-type? condition condition-type)</procedure>
+Condition-has-type? tests if condition condition belongs to condition type condition-type. It returns #t if any of condition 's types includes condition-type eitherdirectlyorasanancestorand #f otherwise.
+
+It is an error if condition is not a condition, or if condition-type is not a condition type.
+
+<procedure>(condition-ref condition field-name)</procedure>
+Condition must be a condition, and field-name a symbol. Moreover, condition must belong to a condition type which has a field name called field-name, or one of its (direct or indirect) supertypes must have the field. Condition-ref returns the value associated with field-name.
+
+It is an error to refer to a field the condition does not have.
+
+<procedure>(make-compound-condition condition[0] condition[1] ...)</procedure>
+Make-compound-condition returns a compound condition belonging to all condition types that the condition[i] belong to.
+
+Condition-ref, when applied to a compound condition will return the value from the first of the condition[i] that has such a field.
+
+<procedure>(extract-condition condition condition-type)</procedure>
+Condition must be a condition belonging to condition-type. Extract-condition returns a condition of condition type condition-type with the field values specified by condition.
+
+If condition is a compound condition, extract-condition extracts the field values from the subcondition belonging to condition-type that appeared first in the call to make-compound-condition that created the the condition. The returned condition may be newly created; it is possible for
+
+<enscript highlight="scheme">
+(let* ((&c (make-condition-type 'c &condition '()))
+       (c0 (make-condition &c))
+       (c1 (make-compound-condition c0)))
+  (eq? c0 (extract-condition c1 &c)))
+</enscript>
+
+to return false.
+=== Macros
+<macro>(define-condition-type {{<condition-type>}} <supertype> {{<predicate>}} {{<field-spec>}} ...)</macro>
+This defines a new condition type. {{<Condition-type>}}, {{<supertypes>}}, and {{<predicate>}} must all be identifiers. Define-condition-type defines an identifier {{<condition-type>}} to some value describing the condition type. {{<supertype>}} must be the name of a previously defined condition type.
+
+Define-condition-type also defines {{<predicate>}} to a predicate that identifies conditions associated with that type, or with any of its subtypes.
+
+Each {{<field-spec>}} must be of the form ( {{<field> <accessor>}}) where both {{<field>}} and {{<accessor>}} must be identifiers. Define-condition-type defines each {{<accessor>}} to a procedure which extracts the value of the named field from a condition associated with this condition type.
+
+<macro>(condition <type-field-binding> ...)</macro>
+This creates a condition value. Each {{<type-field-binding>}} must be of the form {{( <condition-type> <field-binding> ...)}} Each {{<field-binding>}} must be of the form {{(<field> <exp>)}} where {{<field>}} is a field identifier from the definition of {{<condition-type>}}.
+
+The {{<exp>}} are evaluated in some unspecified order; their values can later be extracted from the condition object via the accessors of the associated condition types or their supertypes.
+
+The condition returned by condition is created by a call of form
+
+<enscript highlight="scheme">
+(make-compound-condition
+  (make-condition <condition-type> '<field-name> <value>...)
+  ...)
+</enscript>
+
+with the condition types retaining their order from thecondition form. The field names and values are duplicated as necessary as described below.
+
+Each {{<type-field-binding>}} must contain field bindings for all fields of {{<condition-type>}} without duplicates. There is an exception to this rule: if a field binding is missing, and the field belongs to a supertype shared with one of the other {{<type-field-binding>}} subforms, then the value defaults to that of the first such binding in the condition form.
+=== Standard Conditions
+==== &condition
+This is the root of the entire condition type hierarchy. It has a no fields.
+==== &message
+This condition type could be defined by
+
+<enscript highlight="scheme">
+(define-condition-type &message &condition
+  message-condition?
+  (message condition-message))
+</enscript>
+
+It carries a message further describing the nature of the condition to humans.
+==== &serious
+This condition type could be defined by
+
+<enscript highlight="scheme">
+(define-condition-type &serious &condition
+  serious-condition?)
+</enscript>
+
+This type describes conditions serious enough that they cannot safely be ignored. This condition type is primarily intended as a supertype of other condition types.
+==== &error
+This condition type could be defined by
+
+<enscript highlight="scheme">
+(define-condition-type &error &serious
+  error?)
+</enscript>
+
+This condition describes errors, typically caused by something that has gone wrong in the interaction of the program with the external world or the user.
+=== Examples
+<enscript highlight="scheme">
+(define-condition-type &c &condition
+  c?
+  (x c-x))
+
+(define-condition-type &c1 &c
+  c1?
+  (a c1-a))
+
+(define-condition-type &c2 &c
+  c2?
+  (b c2-b))
+(define v1 (make-condition &c1 'x "V1" 'a "a1"))
+
+(c? v1)      ; => #t
+(c1? v1)     ; => #t
+(c2? v1)     ; => #f
+(c-x v1)     ; => "V1"
+(c1-a v1)    ; => "a1"
+
+(define v2 (condition (&c2
+                        (x "V2")
+                        (b "b2"))))
+
+(c? v2)      ; => #t
+(c1? v2)     ; => #f
+(c2? v2)     ; => #t
+(c-x v2)     ; => "V2"
+(c2-b v2)    ; => "b2"
+
+(define v3 (condition (&c1
+                       (x "V3/1")
+                       (a "a3"))
+                      (&c2
+                       (b "b3"))))
+
+(c? v3)      ; => #t
+(c1? v3)     ; => #t
+(c2? v3)     ; => #t
+(c-x v3)     ; => "V3/1"
+(c1-a v3)    ; => "a3"
+(c2-b v3)    ; => "b3"
+
+(define v4 (make-compound-condition v1 v2))
+
+(c? v4)      ; => #t
+(c1? v4)     ; => #t
+(c2? v4)     ; => #t
+(c-x v4)     ; => "V1"
+(c1-a v4)    ; => "a1"
+(c2-b v4)    ; => "b2"
+
+(define v5 (make-compound-condition v2 v3))
+
+(c? v5)      ; => #t
+(c1? v5)     ; => #t
+(c2? v5)     ; => #t
+(c-x v5)     ; => "V2"
+(c1-a v5)    ; => "a3"
+(c2-b v5)    ; => "b2"
+</enscript>
+=== Implementation
+This Chicken egg uses SRFI-35's reference implementation verbatim.
+=== References
+==== [[https://srfi.schemers.org/srfi-12/|SRFI 12: Exception Handling]] by William Clinger, R. Kent Dybvig, Matthew Flatt, and Marc Feeley
+==== [[http://www.swiss.ai.mit.edu/ftpdir/scheme-mail/HTML/rrrs-1996/msg00022.html|Richard Kelsey's 1996 proposal]]
+==== [[http://world.std.com/~pitman/Papers/Condition-Handling-2001.html|Kent Pitman's history paper]]
+==== The [[http://www.lispworks.com/documentation/HyperSpec/Body/09_.htm|Conditions chapter]] from the [[http://www.lispworks.com/documentation/HyperSpec/Front/index.htm|Common Lisp HyperSpec]]
+==== The Conditions chapter by Kent M. Pitman in [[http://www-2.cs.cmu.edu/afs/cs.cmu.edu/project/ai-repository/ai/html/cltl/cltl2.html|Common Lisp the Language]], 2nd edition by Guy L. Steele
+==== The [[http://www.gwydiondylan.org/drm/drm_52.htm#HEADING52-0|Conditions chapter]] in the [[http://www.gwydiondylan.org/drm/drm_1.htm|Dylan Reference Manual]]
+=== Authors
+This SRFI was written by Richard Kelsey and Michael Sperber.  It was ported to Chicken Scheme by Sergey Goldgaber
+=== Copyright
+Copyright (C) Richard Kelsey, Michael Sperber (2002). All Rights Reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
