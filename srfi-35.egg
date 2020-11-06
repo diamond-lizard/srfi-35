@@ -1,0 +1,10 @@
+;;; srfi-35.egg -*- Scheme -*- vim: ft=scheme:
+
+((synopsis "SRFI-35 Conditions")
+ (author "Richard Kelsey and Michael Sperber")
+ (maintainer "Sergey Goldgaber")
+ (category misc)
+ (test-dependencies test)
+ (license "MIT")
+ (dependencies srfi-1)
+ (components (extension srfi-35)))
